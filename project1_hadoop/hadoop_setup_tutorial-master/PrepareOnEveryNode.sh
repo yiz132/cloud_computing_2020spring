@@ -30,7 +30,10 @@ ln -s hadoop-3.2.1 hadoop
 cd hadoop
 
 # set to the root of your Java installation
+# for linux vm:
 # export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+# for local mac:
+# export JAVA_HOME=/usr/libexec/java_home
 nano etc/hadoop/hadoop-env.sh
 
 #test single node hadoop

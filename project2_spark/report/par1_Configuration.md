@@ -24,7 +24,7 @@
 
 - Start hadoop cluster
 
-<img src="https://github.com/yiz132/cloud_computing_2020spring/raw/master/project2_spark/report/img/image-20200331103854141.png" style="zoom:50%;" />
+  <img src="https://github.com/yiz132/cloud_computing_2020spring/raw/master/project2_spark/report/img/image-20200331103854141.png" style="zoom:50%;" />
 
 - Add the path of hadoop to the source file and refresh it
 
