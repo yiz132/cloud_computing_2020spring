@@ -34,17 +34,20 @@ public class Part3 {
         JavaPairRDD<String, Integer> month_counts = pairRDD.mapToPair(k -> new Tuple2<>(getMonth(k._2),1)).reduceByKey(Integer::sum).sortByKey().cache(); //after date formatting
         Encoder<Tuple2<String,Integer>> encoder = Encoders.tuple(Encoders.STRING(),Encoders.INT());
         Dataset<Row> raw = spark.createDataset(JavaPairRDD.toRDD(month_counts), encoder).toDF("Time","Counts").withColumn("label",functions.row_number().over(Window.orderBy("Time")));
-        raw.show();
+        Dataset<Row> raw2 = raw.select("label","Time","Counts");
+        raw2.show();
         VectorAssembler assembler = new VectorAssembler()
-                .setInputCols(new String[]{"Counts"})
+                .setInputCols(new String[]{"label","Counts"})
                 .setOutputCol("features");
-        Dataset<Row> training = assembler.transform(raw);
+        Dataset<Row> training = assembler.transform(raw2);
         LinearRegression lr = new LinearRegression()
                 .setMaxIter(10)
                 .setRegParam(0.3)
                 .setElasticNetParam(0.8);
         // Fit the model.
         LinearRegressionModel lrModel = lr.fit(training);
+        Dataset<Row> out = lrModel.transform(training);
+        out.show();
         // Print the coefficients and intercept for linear regression.
         System.out.println("Coefficients: "
                 + lrModel.coefficients() + " Intercept: " + lrModel.intercept());
