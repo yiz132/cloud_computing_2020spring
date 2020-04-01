@@ -4,27 +4,23 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.ml.Pipeline;
 import org.apache.spark.ml.feature.VectorAssembler;
 import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.regression.LinearRegressionTrainingSummary;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.sql.*;
-import org.apache.spark.sql.catalyst.expressions.Encode;
-import org.apache.spark.sql.catalyst.expressions.RowNumber;
 import org.apache.spark.sql.expressions.Window;
-import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.apache.spark.sql.types.DataTypes.*;
 
 public class Part3 {
-    public static void run(){
+    public static void run() throws FileNotFoundException {
         SparkConf conf = new SparkConf().setMaster("local").setAppName("part3");
         JavaSparkContext sc = new JavaSparkContext(conf);
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
@@ -35,6 +31,7 @@ public class Part3 {
         Encoder<Tuple2<String,Integer>> encoder = Encoders.tuple(Encoders.STRING(),Encoders.INT());
         Dataset<Row> raw = spark.createDataset(JavaPairRDD.toRDD(month_counts), encoder).toDF("Time","Counts").withColumn("label",functions.row_number().over(Window.orderBy("Time")));
         Dataset<Row> raw2 = raw.select("label","Time","Counts");
+        raw2.cache();
         raw2.show();
         VectorAssembler assembler = new VectorAssembler()
                 .setInputCols(new String[]{"label","Counts"})
@@ -47,17 +44,27 @@ public class Part3 {
         // Fit the model.
         LinearRegressionModel lrModel = lr.fit(training);
         Dataset<Row> out = lrModel.transform(training);
+        out.cache();
         out.show();
         // Print the coefficients and intercept for linear regression.
         System.out.println("Coefficients: "
                 + lrModel.coefficients() + " Intercept: " + lrModel.intercept());
+        PrintWriter writer = new PrintWriter("model.dat");
+        writer.println("Coefficients: "
+                + lrModel.coefficients() + " Intercept: " + lrModel.intercept());
         // Summarize the model over the training set and print out some metrics.
         LinearRegressionTrainingSummary trainingSummary = lrModel.summary();
         System.out.println("numIterations: " + trainingSummary.totalIterations());
+        writer.println("numIterations: " + trainingSummary.totalIterations());
         System.out.println("objectiveHistory: " + Vectors.dense(trainingSummary.objectiveHistory()));
+        writer.println("objectiveHistory: " + Vectors.dense(trainingSummary.objectiveHistory()));
         trainingSummary.residuals().show();
         System.out.println("RMSE: " + trainingSummary.rootMeanSquaredError());
         System.out.println("r2: " + trainingSummary.r2());
+        writer.println("RMSE: " + trainingSummary.rootMeanSquaredError());
+        writer.println("r2: " + trainingSummary.r2());
+        out.write().format("parquet").save("output.parquet");
+        writer.close();
     }
 
 
@@ -83,7 +90,7 @@ public class Part3 {
     }
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws FileNotFoundException {
         long startTime = System.currentTimeMillis();
         run();
         long endTime   = System.currentTimeMillis();
