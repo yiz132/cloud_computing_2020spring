@@ -12,16 +12,15 @@ import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.sql.*;
 import org.apache.spark.sql.expressions.Window;
 import scala.Tuple2;
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 
 public class Part3 {
-    public static void run() throws FileNotFoundException {
-        SparkConf conf = new SparkConf().setMaster("local").setAppName("part3");
+    public static void run() throws IOException {
+        SparkConf conf = new SparkConf().setMaster("yarn").setAppName("part3");
         JavaSparkContext sc = new JavaSparkContext(conf);
         SparkSession spark = SparkSession.builder().config(conf).getOrCreate();
         JavaRDD<String> input = sc.textFile( "access_log" ).repartition(2);
@@ -43,28 +42,21 @@ public class Part3 {
                 .setElasticNetParam(0.8);
         // Fit the model.
         LinearRegressionModel lrModel = lr.fit(training);
+        lrModel.write().save("model");
         Dataset<Row> out = lrModel.transform(training);
         out.cache();
         out.show();
         // Print the coefficients and intercept for linear regression.
         System.out.println("Coefficients: "
                 + lrModel.coefficients() + " Intercept: " + lrModel.intercept());
-        PrintWriter writer = new PrintWriter("model.dat");
-        writer.println("Coefficients: "
-                + lrModel.coefficients() + " Intercept: " + lrModel.intercept());
         // Summarize the model over the training set and print out some metrics.
         LinearRegressionTrainingSummary trainingSummary = lrModel.summary();
         System.out.println("numIterations: " + trainingSummary.totalIterations());
-        writer.println("numIterations: " + trainingSummary.totalIterations());
         System.out.println("objectiveHistory: " + Vectors.dense(trainingSummary.objectiveHistory()));
-        writer.println("objectiveHistory: " + Vectors.dense(trainingSummary.objectiveHistory()));
         trainingSummary.residuals().show();
         System.out.println("RMSE: " + trainingSummary.rootMeanSquaredError());
         System.out.println("r2: " + trainingSummary.r2());
-        writer.println("RMSE: " + trainingSummary.rootMeanSquaredError());
-        writer.println("r2: " + trainingSummary.r2());
         out.write().format("parquet").save("output.parquet");
-        writer.close();
     }
 
 
@@ -90,7 +82,7 @@ public class Part3 {
     }
 
 
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) throws IOException {
         long startTime = System.currentTimeMillis();
         run();
         long endTime   = System.currentTimeMillis();
