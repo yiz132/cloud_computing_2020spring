@@ -28,12 +28,12 @@ public class Part3 {
         JavaPairRDD<String,String> pairRDD = words.mapToPair(k -> new Tuple2<>(k.split(" ")[0],parseDateString(k.split(" ")[1]))).cache(); //original input
         JavaPairRDD<String, Integer> month_counts = pairRDD.mapToPair(k -> new Tuple2<>(getMonth(k._2),1)).reduceByKey(Integer::sum).sortByKey().cache(); //after date formatting
         Encoder<Tuple2<String,Integer>> encoder = Encoders.tuple(Encoders.STRING(),Encoders.INT());
-        Dataset<Row> raw = spark.createDataset(JavaPairRDD.toRDD(month_counts), encoder).toDF("Time","Counts").withColumn("label",functions.row_number().over(Window.orderBy("Time")));
-        Dataset<Row> raw2 = raw.select("label","Time","Counts");
+        Dataset<Row> raw = spark.createDataset(JavaPairRDD.toRDD(month_counts), encoder).toDF("time","label").withColumn("order",functions.row_number().over(Window.orderBy("Time")));
+        Dataset<Row> raw2 = raw.select("order","time","label");
         raw2.cache();
         raw2.show();
         VectorAssembler assembler = new VectorAssembler()
-                .setInputCols(new String[]{"label","Counts"})
+                .setInputCols(new String[]{"order","label"})
                 .setOutputCol("features");
         Dataset<Row> training = assembler.transform(raw2);
         LinearRegression lr = new LinearRegression()
@@ -42,7 +42,7 @@ public class Part3 {
                 .setElasticNetParam(0.8);
         // Fit the model.
         LinearRegressionModel lrModel = lr.fit(training);
-        lrModel.write().save("model");
+        lrModel.write().overwrite().save("model");
         Dataset<Row> out = lrModel.transform(training);
         out.cache();
         out.show();
@@ -56,7 +56,7 @@ public class Part3 {
         trainingSummary.residuals().show();
         System.out.println("RMSE: " + trainingSummary.rootMeanSquaredError());
         System.out.println("r2: " + trainingSummary.r2());
-        out.write().format("parquet").save("output.parquet");
+        out.write().format("parquet").mode(SaveMode.Overwrite).save("output.parquet");
     }
 
 
@@ -67,7 +67,7 @@ public class Part3 {
         return s.substring(0,sec);
     }
 
-    //return the month and year
+    //return date string like 2009-07-15 15:50:35
     private static String parseDateString(String s) throws ParseException {
         SimpleDateFormat format = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss");
         Date date = format.parse(s);
